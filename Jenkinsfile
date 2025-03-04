@@ -6,18 +6,18 @@ pipeline {
     stages {
         stage('Clone Repository') {
             steps {
-                git 'https://github.com/your-username/your-repo.git'
+                git branch: 'main', url: 'https://github.com/Meiyarasu3926/jenkins_test.git'
             }
         }
         stage('Setup Virtual Environment') {
             steps {
                 sh 'python3 -m venv $VENV_PATH'
-                sh 'source $VENV_PATH/bin/activate && pip install -r requirements.txt'
+                sh '. $VENV_PATH/bin/activate && pip install -r requirements.txt'
             }
         }
         stage('Run FastAPI App') {
             steps {
-                sh 'source $VENV_PATH/bin/activate && nohup python main.py &'
+                sh '. $VENV_PATH/bin/activate && nohup uvicorn main:app --host 0.0.0.0 --port 8000 &'
             }
         }
     }
