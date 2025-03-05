@@ -3,6 +3,9 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import logging
 import sys
+import argparse
+import time
+import threading
 
 # Configure logging
 logging.basicConfig(
@@ -45,11 +48,35 @@ async def health_check():
     logger.info("Health check performed")
     return {"status": "healthy"}
 
+def keep_alive():
+    """
+    Function to keep the application running by preventing immediate shutdown
+    """
+    try:
+        while True:
+            time.sleep(3600)  # Sleep for an hour
+    except Exception as e:
+        logger.error(f"Keep-alive thread encountered an error: {e}")
+
 if __name__ == "__main__":
-    logger.info("Starting FastAPI application")
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Run FastAPI application")
+    parser.add_argument('port', type=int, nargs='?', default=8000, 
+                        help='Port to run the application on (default: 8000)')
+    
+    args = parser.parse_args()
+    
+    logger.info(f"Starting FastAPI application on port {args.port}")
+    
+    # Start a keep-alive thread
+    keep_alive_thread = threading.Thread(target=keep_alive, daemon=True)
+    keep_alive_thread.start()
+    
+    # Run the server
     uvicorn.run(
         "main:app", 
         host="0.0.0.0", 
-        port=8000, 
-        log_level="info"
+        port=args.port, 
+        log_level="info",
+        reload=False  # Disable auto-reload
     )
