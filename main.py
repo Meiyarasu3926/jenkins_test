@@ -1,11 +1,18 @@
-import os
-import logging
+import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-import uvicorn
+import logging
+import sys
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('app.log')
+    ]
+)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
@@ -35,13 +42,14 @@ async def home():
 
 @app.get("/health")
 async def health_check():
+    logger.info("Health check performed")
     return {"status": "healthy"}
 
 if __name__ == "__main__":
+    logger.info("Starting FastAPI application")
     uvicorn.run(
         "main:app", 
         host="0.0.0.0", 
         port=8000, 
-        workers=2,  # Use multiple workers
         log_level="info"
     )
