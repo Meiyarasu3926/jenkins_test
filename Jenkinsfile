@@ -39,13 +39,13 @@ pipeline {
                 pkill -f "python3 main.py" || true
                 
                 # Start the app in the background
-                nohup python3 main.py > app.log 2>&1 &
+                nohup python3 main.py $APP_PORT > app.log 2>&1 &
                 
                 # Store the PID
                 echo $! > app.pid
                 
                 # Wait for the app to start
-                sleep 10
+                sleep 15
                 
                 # Check if the process is running
                 if ps -p $(cat app.pid) > /dev/null; then
