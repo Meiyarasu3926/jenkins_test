@@ -38,30 +38,38 @@ pipeline {
                 # Kill any existing instances of the app
                 pkill -f "python3 main.py" || true
                 
-                # Start the app in the background
+                # Start the app in the background with nohup
                 nohup python3 main.py $APP_PORT > app.log 2>&1 &
                 
                 # Store the PID
                 echo $! > app.pid
                 
                 # Wait for the app to start
-                sleep 15
+                sleep 20
                 
                 # Check if the process is running
-                if ps -p $(cat app.pid) > /dev/null; then
-                    echo "Application is running with PID $(cat app.pid)"
-                    
-                    # Perform health check
-                    response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/health)
-                    if [ "$response" = "200" ]; then
-                        echo "Health check successful"
-                    else
-                        echo "Health check failed with status $response"
-                        cat app.log
-                        exit 1
+                max_attempts=5
+                attempt=0
+                success=false
+                
+                while [ $attempt -lt $max_attempts ]; do
+                    if ps -p $(cat app.pid) > /dev/null; then
+                        # Perform health check
+                        response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/health)
+                        if [ "$response" = "200" ]; then
+                            echo "Health check successful"
+                            success=true
+                            break
+                        fi
                     fi
-                else
-                    echo "Application failed to start"
+                    
+                    echo "Attempt $((attempt+1))/$max_attempts failed"
+                    sleep 5
+                    attempt=$((attempt+1))
+                done
+                
+                if [ "$success" != "true" ]; then
+                    echo "Failed to start application"
                     cat app.log
                     exit 1
                 fi
