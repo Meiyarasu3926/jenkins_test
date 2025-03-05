@@ -3,9 +3,8 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import logging
 import sys
-import argparse
+import signal
 import time
-import threading
 
 # Configure logging
 logging.basicConfig(
@@ -48,35 +47,48 @@ async def health_check():
     logger.info("Health check performed")
     return {"status": "healthy"}
 
-def keep_alive():
+def signal_handler(signum, frame):
     """
-    Function to keep the application running by preventing immediate shutdown
+    Handle signals to prevent unexpected shutdown
     """
-    try:
-        while True:
-            time.sleep(3600)  # Sleep for an hour
-    except Exception as e:
-        logger.error(f"Keep-alive thread encountered an error: {e}")
+    logger.info(f"Received signal {signum}. Continuing to run.")
 
-if __name__ == "__main__":
-    # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="Run FastAPI application")
-    parser.add_argument('port', type=int, nargs='?', default=8000, 
-                        help='Port to run the application on (default: 8000)')
+def run_server(host="0.0.0.0", port=8000):
+    """
+    Run the server with signal handling and persistent mode
+    """
+    # Register signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    logger.info(f"Starting FastAPI application on port {port}")
     
-    args = parser.parse_args()
-    
-    logger.info(f"Starting FastAPI application on port {args.port}")
-    
-    # Start a keep-alive thread
-    keep_alive_thread = threading.Thread(target=keep_alive, daemon=True)
-    keep_alive_thread.start()
-    
-    # Run the server
+    # Start the server
     uvicorn.run(
         "main:app", 
-        host="0.0.0.0", 
-        port=args.port, 
+        host=host, 
+        port=port, 
         log_level="info",
-        reload=False  # Disable auto-reload
+        reload=False  # Explicitly disable reload
     )
+
+if __name__ == "__main__":
+    # Allow optional port specification
+    import sys
+    port = 8000
+    if len(sys.argv) > 1:
+        try:
+            port = int(sys.argv[1])
+        except ValueError:
+            logger.error(f"Invalid port number: {sys.argv[1]}. Using default 8000.")
+
+    # Run the server indefinitely
+    while True:
+        try:
+            run_server(port=port)
+            # If server stops, wait and restart
+            logger.warning("Server stopped. Restarting in 5 seconds...")
+            time.sleep(5)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            time.sleep(5)
