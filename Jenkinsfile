@@ -20,7 +20,6 @@ pipeline {
                 python3 -m venv $VENV_PATH || true
                 . $VENV_PATH/bin/activate
                 pip install -r requirements.txt
-                pip install gunicorn  # Add gunicorn for production deployment
                 '''
             }
         }
@@ -37,38 +36,35 @@ pipeline {
                 . $VENV_PATH/bin/activate
                 
                 # Kill any existing instances of the app
-                pkill -f "gunicorn main:app" || true
-                pkill -f "uvicorn main:app" || true
+                pkill -f "python3 main.py" || true
                 
-                # Start the app with Gunicorn for production
-                nohup gunicorn main:app \
-                    --workers 4 \
-                    --worker-class uvicorn.workers.UvicornWorker \
-                    --bind $APP_HOST:$APP_PORT \
-                    --access-logfile app_access.log \
-                    --error-logfile app_error.log \
-                    --capture-output \
-                    --daemon
+                # Start the app in the background
+                nohup python3 main.py > app.log 2>&1 &
+                
+                # Store the PID
+                echo $! > app.pid
                 
                 # Wait for the app to start
                 sleep 10
                 
                 # Check if the process is running
-                pgrep -f "gunicorn main:app" || {
+                if ps -p $(cat app.pid) > /dev/null; then
+                    echo "Application is running with PID $(cat app.pid)"
+                    
+                    # Perform health check
+                    response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/health)
+                    if [ "$response" = "200" ]; then
+                        echo "Health check successful"
+                    else
+                        echo "Health check failed with status $response"
+                        cat app.log
+                        exit 1
+                    fi
+                else
                     echo "Application failed to start"
-                    cat app_error.log
-                    exit 1
-                }
-                
-                # Perform health check
-                response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:$APP_PORT/health)
-                if [ "$response" != "200" ]; then
-                    echo "Health check failed with status $response"
-                    cat app_error.log
+                    cat app.log
                     exit 1
                 fi
-                
-                echo "Application started successfully"
                 '''
             }
         }
@@ -100,7 +96,7 @@ pipeline {
         }
         failure {
             echo 'Pipeline failed!'
-            sh 'cat app_error.log || true'
+            sh 'cat app.log || true'
         }
         always {
             echo 'Finished pipeline execution'
